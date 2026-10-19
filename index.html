@@ -1,6 +1,17 @@
-<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Mahjong">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#dce7da">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="apple-touch-icon.png">
+<style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,-apple-system,"Segoe UI",sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
 <title>Mahjong Solitaire</title>
-<meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=Noto+Serif+TC:wght@700;900&display=swap">
@@ -114,6 +125,10 @@ h1{margin:0;font:900 clamp(22px,4vw,30px)/1.1 var(--cjk);letter-spacing:-.01em;t
 .seal{display:grid;place-items:center;width:68px;height:68px;margin:0 auto 2px;border-radius:12px;background:var(--accent);color:var(--on-accent);font:900 42px/1 var(--cjk);transform:rotate(-6deg);box-shadow:0 0 0 3px var(--panel),0 0 0 5px var(--accent);animation:stamp .55s cubic-bezier(.2,1.5,.4,1) .2s both}
 .stat dd{transform-origin:left center}
 .stat dd.bump{animation:bump .35s ease}
+.stat-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 20px;margin:0;text-align:left}
+.stat-grid div{min-width:0}
+.stat-grid dt{font:500 11px/1.2 var(--sans);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.stat-grid dd{margin:3px 0 0;font:900 20px/1.15 var(--cjk);font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
 @keyframes fade{from{opacity:0}to{opacity:1}}
 @keyframes rise{from{opacity:0;transform:translateY(18px) scale(.94)}to{opacity:1;transform:none}}
 @keyframes stamp{0%{opacity:0;transform:scale(2.6) rotate(-16deg)}100%{opacity:1;transform:scale(1) rotate(-6deg)}}
@@ -144,6 +159,8 @@ h1{margin:0;font:900 clamp(22px,4vw,30px)/1.1 var(--cjk);letter-spacing:-.01em;t
   .tile.hint::before,.tile.nope,.tile.gone,.tile.back,.tile.shuf,.board.dealing .tile,.veil,.veil-card,.seal,.stat dd.bump{animation:none}
 }
 </style>
+</head>
+<body>
 
 <div class="app">
   <header class="top">
@@ -174,7 +191,7 @@ h1{margin:0;font:900 clamp(22px,4vw,30px)/1.1 var(--cjk);letter-spacing:-.01em;t
       <button type="button" class="btn" id="btnZoom" data-act="zoom" title="Zoom (Z)" hidden>Zoom in</button>
       <button type="button" class="btn primary" id="btnNew" data-act="new" title="New deal (N)">New deal</button>
     </div>
-    <p class="meta">Deal <b id="dealNo">0000</b> · <button type="button" class="link" id="btnReplay" data-act="replay">Replay this deal</button></p>
+    <p class="meta">Deal <b id="dealNo">0000</b> · <button type="button" class="link" id="btnReplay" data-act="replay">Replay this deal</button> · <button type="button" class="link" id="btnStats" data-act="stats">Statistics</button></p>
     <p class="rules">Match two identical tiles that are free. A tile is free when nothing lies on top of it and its left or right side is open. Any flower pairs with any flower, and any season with any season. Every deal can be cleared, and Shuffle keeps it that way.</p>
   </div>
 </div>
@@ -325,8 +342,20 @@ var T=POS.map(function(p,i){
   return {x:p.x,y:p.y,l:p.l,face:null,el:el};
 });
 var G={seed:0,alive:new Set(ALL),sel:-1,hist:[],elapsed:0,running:false,over:false,hintN:0,free:new Set(),byG:{},matches:0};
-var best=null;
-try{best=+localStorage.getItem(BEST_KEY)||null;}catch(e){}
+var STATS_KEY='mahjong-turtle-stats-v1',SAVE_KEY='mahjong-turtle-save-v1';
+var stats={played:0,won:0,streak:0,bestStreak:0,bestTime:0,totalTime:0};
+try{
+  var rawS=localStorage.getItem(STATS_KEY);
+  if(rawS){
+    var ps=JSON.parse(rawS);
+    Object.keys(stats).forEach(function(k){if(typeof ps[k]==='number'&&isFinite(ps[k])&&ps[k]>=0)stats[k]=ps[k];});
+  }else{
+    var oldBest=+localStorage.getItem(BEST_KEY)||0;
+    if(oldBest)stats.bestTime=oldBest;
+  }
+}catch(e){}
+var best=stats.bestTime||null;
+function saveStats(){try{localStorage.setItem(STATS_KEY,JSON.stringify(stats));}catch(e){}}
 var hintTimer=0;
 
 /* Effects: particles on a canvas over the table */
@@ -410,6 +439,39 @@ var fx={
   }
 };
 
+var resetArm=false;
+function persist(){
+  try{
+    if(G.over||G.alive.size===0){localStorage.removeItem(SAVE_KEY);return;}
+    localStorage.setItem(SAVE_KEY,JSON.stringify(snapshot()));
+  }catch(e){}
+}
+function loadSave(){
+  try{
+    var d=JSON.parse(localStorage.getItem(SAVE_KEY)||'null');
+    var okIdx=function(i){return Number.isInteger(i)&&i>=0&&i<T.length;};
+    if(!d||!Array.isArray(d.faces)||d.faces.length!==T.length||!Array.isArray(d.alive))return null;
+    if(!d.faces.every(function(id){return FACE_BY_ID[id];}))return null;
+    if(!d.alive.length||!d.alive.every(okIdx))return null;
+    if(!Array.isArray(d.hist)||!d.hist.every(function(p){return Array.isArray(p)&&p.length===2&&p.every(okIdx);}))d.hist=[];
+    d.elapsed=Math.max(0,Math.floor(+d.elapsed||0));
+    return d;
+  }catch(e){return null;}
+}
+function statsHTML(){
+  var p=stats.played,w=stats.won;
+  var cell=function(k,v){return '<div><dt>'+k+'</dt><dd>'+v+'</dd></div>';};
+  return '<div class="veil-card"><h2>Your statistics</h2><dl class="stat-grid">'
+    +cell('Games played',p)+cell('Games won',w)
+    +cell('Win rate',p?Math.round(w/p*100)+'%':'–')
+    +cell('Best time',stats.bestTime?fmt(stats.bestTime):'–')
+    +cell('Average win',w?fmt(Math.round(stats.totalTime/w)):'–')
+    +cell('Win streak',stats.streak+' · best '+stats.bestStreak)
+    +'</dl><p>A game counts once you clear your first pair. Starting a new deal in the middle of a game ends your streak.</p>'
+    +'<div class="veil-actions"><button type="button" class="btn primary" data-act="closeStats">Close</button>'
+    +'<button type="button" class="btn" data-act="resetStats">'+(resetArm?'Tap again to erase':'Reset statistics')+'</button></div></div>';
+}
+
 function fmt(s){var m=Math.floor(s/60),r=s%60;return m+':'+(r<10?'0':'')+r;}
 function randSeed(){return Math.floor(Math.random()*9000)+1000;}
 
@@ -420,11 +482,12 @@ function setFace(i,f){
 }
 
 function newGame(seed){
+  if(G.counted&&!G.over){stats.streak=0;saveStats();}
   var out=null;
   while(!out){out=assign(ALL,DECK,mulberry32(seed));if(!out)seed++;}
   G.seed=seed;
   ALL.forEach(function(i){setFace(i,out[i]);T[i].el.classList.remove('gone','sel','hint','nope');});
-  G.alive=new Set(ALL);G.sel=-1;G.hist=[];G.elapsed=0;G.running=false;G.over=false;G.hintN=0;
+  G.alive=new Set(ALL);G.sel=-1;G.hist=[];G.elapsed=0;G.running=false;G.over=false;G.hintN=0;G.counted=false;
   elDeal.textContent=String(seed);
   fx.clear();
   showVeil(null);
@@ -452,12 +515,15 @@ function refresh(){
   if(G.alive.size===0){if(!G.over)win();}
   else if(m===0)showVeil('stuck');
   else showVeil(null);
+  persist();
 }
 
 function win(){
   G.over=true;G.running=false;
   var isBest=false;
-  if(!best||G.elapsed<best){best=G.elapsed;isBest=true;try{localStorage.setItem(BEST_KEY,String(best));}catch(e){}}
+  stats.won++;stats.streak++;stats.bestStreak=Math.max(stats.bestStreak,stats.streak);stats.totalTime+=G.elapsed;
+  if(!stats.bestTime||G.elapsed<stats.bestTime){stats.bestTime=G.elapsed;isBest=true;}
+  best=stats.bestTime;G.wonBest=isBest;saveStats();btnUndo.disabled=true;
   elBest.textContent=fmt(best);
   fx.win();
   fx.later(reduceMotion?0:900,function(){if(G.over&&G.alive.size===0)showVeil('win',isBest);});
@@ -465,8 +531,9 @@ function win(){
 
 function showVeil(kind,isBest){
   if(!kind){veil.hidden=true;return;}
+  if(kind==='stats'){veil.innerHTML=statsHTML();veil.hidden=false;return;}
   if(kind==='win'){
-    veil.innerHTML='<div class="veil-card"><div class="seal" aria-hidden="true">胡</div><h2>Board cleared</h2><p>Finished in '+fmt(G.elapsed)+(isBest?'. That is your best time.':'. Your best is '+fmt(best)+'.')+'</p><div class="veil-actions"><button type="button" class="btn primary" data-act="new">New deal</button><button type="button" class="btn" data-act="replay">Replay this deal</button></div></div>';
+    veil.innerHTML='<div class="veil-card"><div class="seal" aria-hidden="true">胡</div><h2>Board cleared</h2><p>Finished in '+fmt(G.elapsed)+(isBest?'. That is your best time.':'. Your best is '+fmt(best)+'.')+'</p><p>Wins: '+stats.won+' of '+stats.played+' · Streak: '+stats.streak+'</p><div class="veil-actions"><button type="button" class="btn primary" data-act="new">New deal</button><button type="button" class="btn" data-act="replay">Replay this deal</button></div></div>';
   }else{
     veil.innerHTML='<div class="veil-card"><h2>No open pairs</h2><p>No two free tiles match. Shuffle the remaining tiles into a layout that can still be cleared, or undo a move.</p><div class="veil-actions"><button type="button" class="btn primary" data-act="shuffle">Shuffle</button><button type="button" class="btn" data-act="undo"'+(G.hist.length?'':' disabled')+'>Undo</button></div></div>';
   }
@@ -496,6 +563,7 @@ function pick(i){
     T[s].el.classList.add('gone');t.el.classList.add('gone');
     G.hist.push([s,i]);G.sel=-1;
     fx.pop([s,i]);
+    if(!G.counted){G.counted=true;stats.played++;saveStats();}
     refresh();
   }else{
     T[s].el.classList.remove('sel');
@@ -504,7 +572,7 @@ function pick(i){
 }
 
 function undo(){
-  if(!G.hist.length)return;
+  if(!G.hist.length||G.over)return;
   var p=G.hist.pop();
   if(G.sel!==-1){T[G.sel].el.classList.remove('sel');G.sel=-1;}
   fx.clear();
@@ -556,6 +624,21 @@ function act(a){
   else if(a==='shuffle')shuffleBoard();
   else if(a==='new')newGame(randSeed());
   else if(a==='replay')newGame(G.seed);
+  else if(a==='stats'){resetArm=false;showVeil('stats');}
+  else if(a==='closeStats'){
+    resetArm=false;
+    if(G.alive.size===0)showVeil('win',G.wonBest);
+    else if(G.matches===0)showVeil('stuck');
+    else showVeil(null);
+  }
+  else if(a==='resetStats'){
+    if(!resetArm){resetArm=true;}
+    else{
+      stats={played:0,won:0,streak:0,bestStreak:0,bestTime:0,totalTime:0};
+      best=null;saveStats();elBest.textContent='–';resetArm=false;
+    }
+    showVeil('stats');
+  }
   else if(a==='zoom'){zoomed=!zoomed;fit(true);scroller.scrollLeft=(scroller.scrollWidth-scroller.clientWidth)/2;}
 }
 
@@ -578,8 +661,14 @@ document.addEventListener('keydown',function(e){
 });
 
 setInterval(function(){
-  if(G.running&&!G.over&&!document.hidden){G.elapsed++;elTime.textContent=fmt(G.elapsed);}
+  if(G.running&&!G.over&&!document.hidden&&veil.hidden){
+    G.elapsed++;elTime.textContent=fmt(G.elapsed);
+    if(G.elapsed%10===0)persist();
+  }
 },1000);
+
+document.addEventListener('visibilitychange',function(){if(document.hidden)persist();});
+window.addEventListener('pagehide',persist);
 
 var lastTw=0;
 function fit(force){
@@ -613,19 +702,20 @@ window.addEventListener('resize',function(){fit(false);});
 if(window.ResizeObserver)new ResizeObserver(function(){fit(false);}).observe(stage);
 
 function snapshot(){
-  return {seed:G.seed,faces:T.map(function(t){return t.face.id;}),alive:Array.from(G.alive),hist:G.hist,elapsed:G.elapsed,running:G.running};
+  return {seed:G.seed,faces:T.map(function(t){return t.face.id;}),alive:Array.from(G.alive),hist:G.hist,elapsed:G.elapsed,running:G.running,counted:!!G.counted};
 }
 function restore(d){
   G.seed=d.seed;
   d.faces.forEach(function(id,i){setFace(i,FACE_BY_ID[id]);});
-  G.alive=new Set(d.alive);G.hist=d.hist||[];G.elapsed=d.elapsed||0;G.running=!!d.running;G.over=false;G.sel=-1;
+  G.alive=new Set(d.alive);G.hist=d.hist||[];G.elapsed=d.elapsed||0;G.running=false;G.counted=!!d.counted;G.over=false;G.sel=-1;
   T.forEach(function(t,i){t.el.classList.toggle('gone',!G.alive.has(i));t.el.classList.remove('sel','hint');});
   elDeal.textContent=String(G.seed);
   refresh();
 }
 function start(d){
   try{
-    if(d&&d.faces&&d.faces.length===T.length)restore(d);else newGame(randSeed());
+    var saved=(d&&d.faces&&d.faces.length===T.length)?d:loadSave();
+    if(saved)restore(saved);else newGame(randSeed());
   }catch(e){newGame(randSeed());}
   fit(true);
 }
@@ -635,4 +725,5 @@ if(hot&&hot.ready)hot.ready(start);else start(hot&&hot.data||{});
 })();
 </script>
 
-</body></html>
+</body>
+</html>
