@@ -165,7 +165,7 @@ h1{margin:0;font:900 clamp(22px,4vw,30px)/1.1 var(--cjk);letter-spacing:-.01em;t
 <div class="app">
   <header class="top">
     <div>
-      <p class="eyebrow">Turtle layout · 144 tiles</p>
+      <p class="eyebrow" id="eyebrow">Turtle layout · 144 tiles</p>
       <h1>Mahjong Solitaire</h1>
     </div>
     <dl class="stats" aria-label="Game status">
@@ -191,7 +191,7 @@ h1{margin:0;font:900 clamp(22px,4vw,30px)/1.1 var(--cjk);letter-spacing:-.01em;t
       <button type="button" class="btn" id="btnZoom" data-act="zoom" title="Zoom (Z)" hidden>Zoom in</button>
       <button type="button" class="btn primary" id="btnNew" data-act="new" title="New deal (N)">New deal</button>
     </div>
-    <p class="meta">Deal <b id="dealNo">0000</b> · <button type="button" class="link" id="btnReplay" data-act="replay">Replay this deal</button> · <button type="button" class="link" id="btnStats" data-act="stats">Statistics</button></p>
+    <p class="meta">Deal <b id="dealNo">0000</b> · <button type="button" class="link" id="btnReplay" data-act="replay">Replay this deal</button> · <button type="button" class="link" id="btnStats" data-act="stats">Statistics</button> · <button type="button" class="link" id="btnLayout" data-act="layout">Switch layout</button></p>
     <p class="rules">Match two identical tiles that are free. A tile is free when nothing lies on top of it and its left or right side is open. Any flower pairs with any flower, and any season with any season. Every deal can be cleared, and Shuffle keeps it that way.</p>
   </div>
 </div>
@@ -227,7 +227,7 @@ function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;var t=Math.imul(a
 function shuffle(arr,rng){for(var i=arr.length-1;i>0;i--){var j=Math.floor(rng()*(i+1));var t=arr[i];arr[i]=arr[j];arr[j]=t;}return arr;}
 
 /* Positions are in half-tile units: a tile covers 2 by 2. */
-function buildLayout(){
+function buildWide(){
   var P=[],x,y;
   [[0,2,24],[2,6,20],[4,4,22],[6,2,24],[8,2,24],[10,4,22],[12,6,20],[14,2,24]].forEach(function(r){
     for(x=r[1];x<=r[2];x+=2)P.push({x:x,y:r[0],l:0});
@@ -239,7 +239,22 @@ function buildLayout(){
   P.push({x:13,y:7,l:4});
   return P;
 }
-var POS=buildLayout();
+function buildTall(){
+  var P=[],x,y;
+  for(y=0;y<=18;y+=2)for(x=0;x<=14;x+=2)P.push({x:x,y:y,l:0});
+  for(y=2;y<=16;y+=2)for(x=2;x<=12;x+=2)P.push({x:x,y:y,l:1});
+  for(y=6;y<=12;y+=2)for(x=4;x<=10;x+=2)P.push({x:x,y:y,l:2});
+  return P;
+}
+var LAYOUTS={
+  wide:{data:buildWide(),cols:15,rows:8,name:'Turtle'},
+  tall:{data:buildTall(),cols:8,rows:10,name:'Tower'}
+};
+var POS=LAYOUTS.wide.data.map(function(p){return {x:p.x,y:p.y,l:p.l};});
+function applyLayout(name){
+  var d=LAYOUTS[name].data;
+  for(var i=0;i<POS.length;i++){POS[i].x=d[i].x;POS[i].y=d[i].y;POS[i].l=d[i].l;}
+}
 var ALL=POS.map(function(_,i){return i;});
 
 function isFree(i,alive){
@@ -341,7 +356,7 @@ var T=POS.map(function(p,i){
   board.appendChild(el);
   return {x:p.x,y:p.y,l:p.l,face:null,el:el};
 });
-var G={seed:0,alive:new Set(ALL),sel:-1,hist:[],elapsed:0,running:false,over:false,hintN:0,free:new Set(),byG:{},matches:0};
+var G={layout:'wide',seed:0,alive:new Set(ALL),sel:-1,hist:[],elapsed:0,running:false,over:false,hintN:0,free:new Set(),byG:{},matches:0};
 var STATS_KEY='mahjong-turtle-stats-v1',SAVE_KEY='mahjong-turtle-save-v1';
 var stats={played:0,won:0,streak:0,bestStreak:0,bestTime:0,totalTime:0};
 try{
@@ -439,6 +454,26 @@ var fx={
   }
 };
 
+function stageBox(){
+  var cs=getComputedStyle(stage);
+  return {
+    w:stage.clientWidth-parseFloat(cs.paddingLeft)-parseFloat(cs.paddingRight),
+    h:Math.max(200,stage.clientHeight-parseFloat(cs.paddingTop)-parseFloat(cs.paddingBottom)-8)
+  };
+}
+function chooseLayout(){
+  var b=stageBox();
+  var size=function(L){return Math.min(b.w/(L.cols+.1),b.h/(L.rows*1.15+.06));};
+  return size(LAYOUTS.tall)>size(LAYOUTS.wide)*1.08?'tall':'wide';
+}
+function setLayoutNow(name){
+  applyLayout(name);
+  G.layout=name;
+  T.forEach(function(t,i){t.x=POS[i].x;t.y=POS[i].y;t.l=POS[i].l;});
+  var eb=document.getElementById('eyebrow');
+  if(eb)eb.textContent=LAYOUTS[name].name+' layout · 144 tiles';
+  fit(true);
+}
 var resetArm=false;
 function persist(){
   try{
@@ -481,8 +516,9 @@ function setFace(i,f){
   T[i].el.setAttribute('aria-label',f.name);
 }
 
-function newGame(seed){
+function newGame(seed,layout){
   if(G.counted&&!G.over){stats.streak=0;saveStats();}
+  setLayoutNow(layout||chooseLayout());
   var out=null;
   while(!out){out=assign(ALL,DECK,mulberry32(seed));if(!out)seed++;}
   G.seed=seed;
@@ -623,7 +659,8 @@ function act(a){
   else if(a==='hint')hint();
   else if(a==='shuffle')shuffleBoard();
   else if(a==='new')newGame(randSeed());
-  else if(a==='replay')newGame(G.seed);
+  else if(a==='replay')newGame(G.seed,G.layout);
+  else if(a==='layout')newGame(randSeed(),G.layout==='wide'?'tall':'wide');
   else if(a==='stats'){resetArm=false;showVeil('stats');}
   else if(a==='closeStats'){
     resetArm=false;
@@ -673,11 +710,12 @@ window.addEventListener('pagehide',persist);
 var lastTw=0;
 function fit(force){
   sizeFx();
+  var LY=LAYOUTS[G.layout]||LAYOUTS.wide;
   var cs=getComputedStyle(stage);
   var availW=stage.clientWidth-parseFloat(cs.paddingLeft)-parseFloat(cs.paddingRight);
   var availH=stage.clientHeight-parseFloat(cs.paddingTop)-parseFloat(cs.paddingBottom)-8;
   availH=Math.max(availH,200);
-  var tw=Math.floor(Math.min(availW/15.1,availH/10.34));
+  var tw=Math.floor(Math.min(availW/(LY.cols+.1),availH/(LY.rows*1.15+.06)));
   tw=Math.max(16,Math.min(110,tw));
   var canZoom=tw<40;
   btnZoom.hidden=!canZoom;
@@ -685,13 +723,13 @@ function fit(force){
   btnZoom.textContent=zoomed?'Zoom out':'Zoom in';
   if(tw===lastTw&&!force)return;
   lastTw=tw;
-  var ratio=zoomed?1.28:Math.max(1.28,Math.min(1.7,(availH-6)/(8*tw)));
+  var ratio=zoomed?1.28:Math.max(1.15,Math.min(1.7,(availH-6)/(LY.rows*tw)));
   var th=Math.round(tw*ratio),t=Math.max(2,Math.round(tw*.1));
   board.style.setProperty('--tw',tw+'px');
   board.style.setProperty('--th',th+'px');
   board.style.setProperty('--t',t+'px');
-  board.style.width=(15*tw+t)+'px';
-  board.style.height=(8*th+t)+'px';
+  board.style.width=(LY.cols*tw+t)+'px';
+  board.style.height=(LY.rows*th+t)+'px';
   T.forEach(function(q){
     q.el.style.left=(q.x*tw/2-q.l*t)+'px';
     q.el.style.top=(q.y*th/2-q.l*t)+'px';
@@ -702,9 +740,10 @@ window.addEventListener('resize',function(){fit(false);});
 if(window.ResizeObserver)new ResizeObserver(function(){fit(false);}).observe(stage);
 
 function snapshot(){
-  return {seed:G.seed,faces:T.map(function(t){return t.face.id;}),alive:Array.from(G.alive),hist:G.hist,elapsed:G.elapsed,running:G.running,counted:!!G.counted};
+  return {seed:G.seed,faces:T.map(function(t){return t.face.id;}),alive:Array.from(G.alive),hist:G.hist,elapsed:G.elapsed,running:G.running,counted:!!G.counted,layout:G.layout};
 }
 function restore(d){
+  setLayoutNow(LAYOUTS[d.layout]?d.layout:'wide');
   G.seed=d.seed;
   d.faces.forEach(function(id,i){setFace(i,FACE_BY_ID[id]);});
   G.alive=new Set(d.alive);G.hist=d.hist||[];G.elapsed=d.elapsed||0;G.running=false;G.counted=!!d.counted;G.over=false;G.sel=-1;
