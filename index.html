@@ -21,6 +21,7 @@
   --bg:#dce7da; --felt:#bfd3c1; --felt-line:#a6bfaa; --panel:#eef4ec; --line:#a3bba8;
   --fg:#12302a; --muted:#46665b;
   --accent:#bf3a22; --on-accent:#ffffff; --select:#d2381c; --hint:#e0a100;
+  --hint-ring:#ff8a00; --hint-halo:#ffffff; --hint-fill:rgba(255,160,0,.38);
   --tile-face:#f7f2df; --tile-edge-1:#dcd4b6; --tile-edge-2:#2f7c5b; --tile-line:rgba(10,40,30,.45); --lock:rgba(22,60,48,.26);
   --ink:#18233f; --red:#b3271b; --green:#1b7646; --blue:#1c4d8f; --bonus:#c78a00;
   --cjk:"Noto Serif TC","Songti TC","PMingLiU","Noto Serif CJK TC",serif;
@@ -31,6 +32,7 @@
     --bg:#0b2823; --felt:#0e3a32; --felt-line:#1b5247; --panel:#12433a; --line:#2a6256;
     --fg:#e4f0e6; --muted:#92b8a8;
     --accent:#f2775a; --on-accent:#1b0b06; --select:#ff7a59; --hint:#f2b705;
+    --hint-ring:#ffc21a; --hint-halo:#12302a; --hint-fill:rgba(255,190,0,.4);
     --tile-face:#f0ead3; --tile-edge-1:#cfc7a8; --tile-edge-2:#1f6a4b; --lock:rgba(5,25,20,.34);
     color-scheme:dark;
   }
@@ -39,6 +41,7 @@
   --bg:#0b2823; --felt:#0e3a32; --felt-line:#1b5247; --panel:#12433a; --line:#2a6256;
   --fg:#e4f0e6; --muted:#92b8a8;
   --accent:#f2775a; --on-accent:#1b0b06; --select:#ff7a59; --hint:#f2b705;
+  --hint-ring:#ffc21a; --hint-halo:#12302a; --hint-fill:rgba(255,190,0,.4);
   --tile-face:#f0ead3; --tile-edge-1:#cfc7a8; --tile-edge-2:#1f6a4b; --lock:rgba(5,25,20,.34);
   color-scheme:dark;
 }
@@ -89,7 +92,12 @@ h1{margin:0;font:900 clamp(22px,4vw,30px)/1.1 var(--cjk);letter-spacing:-.01em;t
 .tile::before{content:"";position:absolute;inset:-2px;border:3px solid var(--select);border-radius:inherit;opacity:0;pointer-events:none;z-index:1}
 .tile.sel{transform:translate(calc(var(--t)*-.6),calc(var(--t)*-.6))}
 .tile.sel::before{opacity:1}
-.tile.hint::before{border-color:var(--hint);opacity:1;animation:pulse .7s ease-in-out 3}
+.tile.hint::before{
+  inset:-3px;border:4px solid var(--hint-ring);opacity:1;z-index:2;
+  background:var(--hint-fill);
+  box-shadow:0 0 0 2px var(--hint-halo),0 0 14px 4px var(--hint-ring);
+  animation:pulse .8s ease-in-out infinite;
+}
 .tile.nope{animation:nope .22s ease}
 .tile.gone{opacity:0;visibility:hidden;pointer-events:none;animation:vanish .38s ease-in}
 .tile.back{animation:back .3s ease backwards}
@@ -99,7 +107,7 @@ h1{margin:0;font:900 clamp(22px,4vw,30px)/1.1 var(--cjk);letter-spacing:-.01em;t
 @keyframes back{from{opacity:0;transform:scale(.7)}to{opacity:1;transform:none}}
 @keyframes shuf{from{opacity:.2;transform:scaleX(.05)}to{opacity:1;transform:none}}
 @keyframes dealin{from{opacity:0;transform:translateY(-22px) scale(.8)}to{opacity:1;transform:none}}
-@keyframes pulse{50%{opacity:.25}}
+@keyframes pulse{50%{opacity:.55;box-shadow:0 0 0 2px var(--hint-halo),0 0 4px 1px var(--hint-ring)}}
 @keyframes nope{25%{transform:translateX(-3px)}75%{transform:translateX(3px)}}
 
 .fr{fill:var(--red)} .fg{fill:var(--green)} .fb{fill:var(--blue)} .fk{fill:var(--ink)} .fi{fill:var(--tile-face)} .fo{fill:var(--bonus)}
@@ -632,7 +640,7 @@ function hint(){
   var p=list[G.hintN++%list.length];
   clearHint();
   p.forEach(function(i){T[i].el.classList.add('hint');});
-  hintTimer=setTimeout(clearHint,2400);
+  hintTimer=setTimeout(clearHint,7000);
 }
 
 function shuffleBoard(){
