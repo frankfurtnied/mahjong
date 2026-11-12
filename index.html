@@ -155,6 +155,16 @@ h1{margin:0;font:900 clamp(22px,4vw,30px)/1.1 var(--cjk);letter-spacing:-.01em;t
 .meta b{color:var(--fg);font-variant-numeric:tabular-nums}
 .link{background:none;border:0;padding:4px 0;font:inherit;color:var(--fg);text-decoration:underline;text-underline-offset:3px;cursor:pointer}
 .rules{margin:0;max-width:68ch;font-size:13px;line-height:1.55;color:var(--muted)}
+body{background:radial-gradient(ellipse at 50% 0%,color-mix(in srgb,var(--felt) 65%,var(--bg)),var(--bg) 74%)}
+.top{padding:8px 12px 5px}h1{letter-spacing:.018em}
+.stage{border:3px solid color-mix(in srgb,var(--felt-line) 72%,var(--fg));border-radius:22px;box-shadow:inset 0 0 0 2px rgba(255,255,255,.15),inset 0 10px 38px rgba(0,0,0,.10),0 8px 28px rgba(0,0,0,.13)}
+.bar{padding:8px 10px 4px;border-radius:14px;background:color-mix(in srgb,var(--panel) 70%,transparent)}
+.tile.guide:not(.sel):not(.hint)::before{inset:-2px;border:2px dashed var(--hint-ring);opacity:.7;background:rgba(255,210,45,.12)}
+.options{display:flex;flex-wrap:wrap;align-items:center;gap:7px 14px;margin-bottom:2px;font-size:13px;color:var(--muted)}
+.options label{font-weight:600;display:flex;align-items:center;gap:8px}
+.options select{font:600 14px var(--sans);padding:8px 12px;border-radius:10px;border:1px solid var(--line);background:var(--panel);color:var(--fg);min-height:40px}
+.options small{font-size:12px;line-height:1.4}
+@media(max-width:520px){.top{padding:2px 0}.bar{padding:6px}.options{gap:4px 10px}}
 
 @media (max-width:520px){
   .stats{width:100%;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px 10px}
@@ -174,7 +184,7 @@ h1{margin:0;font:900 clamp(22px,4vw,30px)/1.1 var(--cjk);letter-spacing:-.01em;t
   <header class="top">
     <div>
       <p class="eyebrow" id="eyebrow">Turtle layout · 144 tiles</p>
-      <h1>Mahjong Solitaire</h1>
+      <h1>🀄 Mahjong Solitaire</h1>
     </div>
     <dl class="stats" aria-label="Game status">
       <div class="stat"><dt>Time</dt><dd id="sTime">0:00</dd></div>
@@ -192,6 +202,10 @@ h1{margin:0;font:900 clamp(22px,4vw,30px)/1.1 var(--cjk);letter-spacing:-.01em;t
   </main>
 
   <div class="bar" id="bar">
+    <div class="options"><label for="difficulty">Difficulty
+      <select id="difficulty" aria-label="Choose difficulty">
+        <option value="easy">🌱 Easy</option><option value="normal">🍃 Normal</option><option value="hard">🔥 Hard</option>
+      </select></label><small id="difficultyDesc" aria-live="polite"></small></div>
     <div class="actions">
       <button type="button" class="btn" id="btnUndo" data-act="undo" title="Undo (U)">Undo</button>
       <button type="button" class="btn" id="btnHint" data-act="hint" title="Hint (H)">Hint</button>
@@ -356,6 +370,22 @@ var $=function(s){return document.querySelector(s);};
 var board=$('#board'),scroller=$('#scroller'),btnZoom=$('#btnZoom'),zoomed=false,stage=$('#stage'),veil=$('#veil'),bar=$('#bar');
 var elTime=$('#sTime'),elTiles=$('#sTiles'),elMatch=$('#sMatch'),elBest=$('#sBest'),elDeal=$('#dealNo');
 var btnUndo=$('#btnUndo'),btnHint=$('#btnHint'),btnShuffle=$('#btnShuffle');
+var difficultyControl=$('#difficulty'),difficultyDesc=$('#difficultyDesc');
+var DIFFICULTY_KEY='mahjong-turtle-difficulty-v1';
+var DIFFICULTIES={
+  easy:{description:'Matching free tiles glow gently · Unlimited hints and reshuffles.',hints:Infinity,shuffles:Infinity},
+  normal:{description:'Classic Mahjong · Hints and reshuffles available.',hints:Infinity,shuffles:Infinity},
+  hard:{description:'No hints · One reshuffle per deal. Undo is available.',hints:0,shuffles:1}
+};
+function validDifficulty(v){return Object.prototype.hasOwnProperty.call(DIFFICULTIES,v)?v:'normal';}
+var chosenDifficulty='normal';
+try{chosenDifficulty=validDifficulty(localStorage.getItem(DIFFICULTY_KEY));}catch(e){}
+function syncDifficultyUi(){
+  difficultyControl.value=G.difficulty;
+  var policy=DIFFICULTIES[G.difficulty];
+  difficultyDesc.textContent=policy.description+(G.difficulty==='hard'?' · '+Math.max(0,1-G.shufflesUsed)+' shuffle left':'');
+}
+
 var BEST_KEY='mahjong-turtle-best';
 
 var T=POS.map(function(p,i){
@@ -364,7 +394,7 @@ var T=POS.map(function(p,i){
   board.appendChild(el);
   return {x:p.x,y:p.y,l:p.l,face:null,el:el};
 });
-var G={layout:'wide',seed:0,alive:new Set(ALL),sel:-1,hist:[],elapsed:0,running:false,over:false,hintN:0,free:new Set(),byG:{},matches:0};
+var G={layout:'wide',difficulty:chosenDifficulty,shufflesUsed:0,seed:0,alive:new Set(ALL),sel:-1,hist:[],elapsed:0,running:false,over:false,hintN:0,free:new Set(),byG:{},matches:0};
 var STATS_KEY='mahjong-turtle-stats-v1',SAVE_KEY='mahjong-turtle-save-v1';
 var stats={played:0,won:0,streak:0,bestStreak:0,bestTime:0,totalTime:0};
 try{
@@ -524,8 +554,11 @@ function setFace(i,f){
   T[i].el.setAttribute('aria-label',f.name);
 }
 
-function newGame(seed,layout){
+function newGame(seed,layout,difficulty){
   if(G.counted&&!G.over){stats.streak=0;saveStats();}
+  G.difficulty=validDifficulty(difficulty||G.difficulty);
+  G.shufflesUsed=0;
+  try{localStorage.setItem(DIFFICULTY_KEY,G.difficulty);}catch(e){}
   setLayoutNow(layout||chooseLayout());
   var out=null;
   while(!out){out=assign(ALL,DECK,mulberry32(seed));if(!out)seed++;}
@@ -554,8 +587,15 @@ function refresh(){
   elTime.textContent=fmt(G.elapsed);
   elBest.textContent=best?fmt(best):'–';
   btnUndo.disabled=G.hist.length===0;
-  btnHint.disabled=G.over||m===0;
-  btnShuffle.disabled=G.over||G.alive.size<4;
+  var mode=DIFFICULTIES[G.difficulty];
+  btnHint.disabled=G.over||m===0||mode.hints===0;
+  btnShuffle.disabled=G.over||G.alive.size<4||G.shufflesUsed>=mode.shuffles;
+  btnHint.title=mode.hints===0?'Hints disabled in Hard mode':'Show matching pair (H)';
+  btnShuffle.title=G.shufflesUsed>=mode.shuffles?'No reshuffles remaining':'Shuffle (S)';
+  T.forEach(function(t,i){
+    t.el.classList.toggle('guide',G.difficulty==='easy'&&free.has(i)&&byG[t.face.group]&&byG[t.face.group].length>1&&!G.over);
+  });
+  syncDifficultyUi();
   if(G.alive.size===0){if(!G.over)win();}
   else if(m===0)showVeil('stuck');
   else showVeil(null);
@@ -579,7 +619,8 @@ function showVeil(kind,isBest){
   if(kind==='win'){
     veil.innerHTML='<div class="veil-card"><div class="seal" aria-hidden="true">胡</div><h2>Board cleared</h2><p>Finished in '+fmt(G.elapsed)+(isBest?'. That is your best time.':'. Your best is '+fmt(best)+'.')+'</p><p>Wins: '+stats.won+' of '+stats.played+' · Streak: '+stats.streak+'</p><div class="veil-actions"><button type="button" class="btn primary" data-act="new">New deal</button><button type="button" class="btn" data-act="replay">Replay this deal</button></div></div>';
   }else{
-    veil.innerHTML='<div class="veil-card"><h2>No open pairs</h2><p>No two free tiles match. Shuffle the remaining tiles into a layout that can still be cleared, or undo a move.</p><div class="veil-actions"><button type="button" class="btn primary" data-act="shuffle">Shuffle</button><button type="button" class="btn" data-act="undo"'+(G.hist.length?'':' disabled')+'>Undo</button></div></div>';
+    var canShuffle=G.alive.size>=4&&G.shufflesUsed<DIFFICULTIES[G.difficulty].shuffles;
+    veil.innerHTML='<div class="veil-card"><h2>No open pairs</h2><p>'+(canShuffle?'You can reshuffle the remaining tiles, or undo a move.':'No reshuffles remain in Hard mode. Undo moves to try another path, or start a new deal.')+'</p><div class="veil-actions">'+(canShuffle?'<button type="button" class="btn primary" data-act="shuffle">Shuffle</button>':'')+'<button type="button" class="btn" data-act="undo"'+(G.hist.length?'':' disabled')+'>Undo</button><button type="button" class="btn" data-act="new">New deal</button></div></div>';
   }
   veil.hidden=false;
 }
@@ -630,7 +671,7 @@ function undo(){
 }
 
 function hint(){
-  if(G.over||!G.matches)return;
+  if(G.over||!G.matches||DIFFICULTIES[G.difficulty].hints===0)return;
   var list=[];
   for(var k in G.byG){
     var a=G.byG[k];
@@ -644,7 +685,7 @@ function hint(){
 }
 
 function shuffleBoard(){
-  if(G.over||G.alive.size<4)return;
+  if(G.over||G.alive.size<4||G.shufflesUsed>=DIFFICULTIES[G.difficulty].shuffles)return;
   var idxs=Array.from(G.alive);
   var pool=idxs.map(function(i){return T[i].face;});
   var out=assign(idxs,pool,Math.random);
@@ -659,6 +700,7 @@ function shuffleBoard(){
     e.classList.remove('shuf');void e.offsetWidth;e.classList.add('shuf');
   });
   G.hist=[];
+  G.shufflesUsed++;
   refresh();
 }
 
@@ -667,7 +709,7 @@ function act(a){
   else if(a==='hint')hint();
   else if(a==='shuffle')shuffleBoard();
   else if(a==='new')newGame(randSeed());
-  else if(a==='replay')newGame(G.seed,G.layout);
+  else if(a==='replay')newGame(G.seed,G.layout,G.difficulty);
   else if(a==='layout')newGame(randSeed(),G.layout==='wide'?'tall':'wide');
   else if(a==='stats'){resetArm=false;showVeil('stats');}
   else if(a==='closeStats'){
@@ -699,8 +741,17 @@ document.addEventListener('click',function(e){
   var b=e.target.closest('[data-act]');
   if(b&&!b.disabled)act(b.dataset.act);
 });
+difficultyControl.addEventListener('change',function(){
+  var next=validDifficulty(difficultyControl.value);
+  if(next===G.difficulty)return;
+  if(G.counted&&!G.over&&!confirm('Changing difficulty starts a new deal. Your current game will end. Continue?')){
+    difficultyControl.value=G.difficulty;return;
+  }
+  clearHint();newGame(randSeed(),G.layout,next);
+});
 document.addEventListener('keydown',function(e){
   if(e.metaKey||e.ctrlKey||e.altKey)return;
+  if(e.target&&/^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName))return;
   var k=e.key.toLowerCase();
   if(k==='u')act('undo');else if(k==='h')act('hint');else if(k==='s')act('shuffle');else if(k==='n')act('new');
 });
@@ -748,9 +799,11 @@ window.addEventListener('resize',function(){fit(false);});
 if(window.ResizeObserver)new ResizeObserver(function(){fit(false);}).observe(stage);
 
 function snapshot(){
-  return {seed:G.seed,faces:T.map(function(t){return t.face.id;}),alive:Array.from(G.alive),hist:G.hist,elapsed:G.elapsed,running:G.running,counted:!!G.counted,layout:G.layout};
+  return {seed:G.seed,faces:T.map(function(t){return t.face.id;}),alive:Array.from(G.alive),hist:G.hist,elapsed:G.elapsed,running:G.running,counted:!!G.counted,layout:G.layout,difficulty:G.difficulty,shufflesUsed:G.shufflesUsed};
 }
 function restore(d){
+  G.difficulty=validDifficulty(d.difficulty||'normal');
+  G.shufflesUsed=Math.max(0,Math.min(1,Math.floor(Number(d.shufflesUsed)||0)));
   setLayoutNow(LAYOUTS[d.layout]?d.layout:'wide');
   G.seed=d.seed;
   d.faces.forEach(function(id,i){setFace(i,FACE_BY_ID[id]);});
