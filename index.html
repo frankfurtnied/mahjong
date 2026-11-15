@@ -90,8 +90,8 @@ h1{margin:0;font:900 clamp(22px,4vw,30px)/1.1 var(--cjk);letter-spacing:-.01em;t
 .tile.locked{cursor:default}
 .tile.locked::after{opacity:1}
 .tile::before{content:"";position:absolute;inset:-2px;border:3px solid var(--select);border-radius:inherit;opacity:0;pointer-events:none;z-index:1}
-.tile.sel{transform:translate(calc(var(--t)*-.6),calc(var(--t)*-.6))}
-.tile.sel::before{opacity:1}
+.tile.sel{transform:translate(calc(var(--t)*-.6),calc(var(--t)*-.6));filter:brightness(1.08)}
+.tile.sel::before{opacity:1;box-shadow:0 0 0 2px var(--tile-face),0 0 0 5px var(--select)}
 .tile.hint::before{
   inset:-3px;border:4px solid var(--hint-ring);opacity:1;z-index:2;
   background:var(--hint-fill);
@@ -111,6 +111,7 @@ h1{margin:0;font:900 clamp(22px,4vw,30px)/1.1 var(--cjk);letter-spacing:-.01em;t
 @keyframes nope{25%{transform:translateX(-3px)}75%{transform:translateX(3px)}}
 
 .fr{fill:var(--red)} .fg{fill:var(--green)} .fb{fill:var(--blue)} .fk{fill:var(--ink)} .fi{fill:var(--tile-face)} .fo{fill:var(--bonus)}
+.tile svg{filter:contrast(1.12)}
 .sb{fill:none;stroke:var(--blue);stroke-width:3}
 
 .veil{
@@ -150,6 +151,7 @@ h1{margin:0;font:900 clamp(22px,4vw,30px)/1.1 var(--cjk);letter-spacing:-.01em;t
 .btn:hover:not(:disabled){border-color:var(--muted)}
 .btn:disabled{opacity:.45;cursor:default}
 .btn.primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.btn.zoom-active{background:var(--fg);border-color:var(--fg);color:var(--panel)}
 .btn:focus-visible,.link:focus-visible{outline:3px solid var(--hint);outline-offset:2px}
 .meta{margin:0;font-size:13px;color:var(--muted);display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center}
 .meta b{color:var(--fg);font-variant-numeric:tabular-nums}
@@ -167,9 +169,18 @@ body{background:radial-gradient(ellipse at 50% 0%,color-mix(in srgb,var(--felt) 
 @media(max-width:520px){.top{padding:2px 0}.bar{padding:6px}.options{gap:4px 10px}}
 
 @media (max-width:520px){
+  body{padding-left:max(8px,env(safe-area-inset-left,0px));padding-right:max(8px,env(safe-area-inset-right,0px));padding-block:7px 9px}
+  .app{gap:7px}
+  h1{font-size:22px}
   .stats{width:100%;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px 10px}
   .stat dd{font-size:19px}
-  .stage{padding:10px}
+  .stage{padding:6px;border-radius:14px}
+  .bar{gap:6px}
+  .actions{grid-auto-flow:row;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+  .btn{min-height:46px;padding:0 5px;font-size:13px}
+  .actions .primary{grid-column:span 2}
+  .options small{flex:1;min-width:170px}
+  .meta{font-size:12px}
 }
 @media (max-height:800px){.rules{display:none}}
 @media (prefers-reduced-motion:reduce){
@@ -210,7 +221,7 @@ body{background:radial-gradient(ellipse at 50% 0%,color-mix(in srgb,var(--felt) 
       <button type="button" class="btn" id="btnUndo" data-act="undo" title="Undo (U)">Undo</button>
       <button type="button" class="btn" id="btnHint" data-act="hint" title="Hint (H)">Hint</button>
       <button type="button" class="btn" id="btnShuffle" data-act="shuffle" title="Shuffle (S)">Shuffle</button>
-      <button type="button" class="btn" id="btnZoom" data-act="zoom" title="Zoom (Z)" hidden>Zoom in</button>
+      <button type="button" class="btn" id="btnZoom" data-act="zoom" title="Enlarge the tiles" aria-pressed="false" hidden>Large tiles</button>
       <button type="button" class="btn primary" id="btnNew" data-act="new" title="New deal (N)">New deal</button>
     </div>
     <p class="meta">Deal <b id="dealNo">0000</b> · <button type="button" class="link" id="btnReplay" data-act="replay">Replay this deal</button> · <button type="button" class="link" id="btnStats" data-act="stats">Statistics</button> · <button type="button" class="link" id="btnLayout" data-act="layout">Switch layout</button></p>
@@ -572,6 +583,11 @@ function newGame(seed,layout,difficulty){
   fx.deal();
 }
 
+function confirmAbandon(action){
+  if(!G.counted||G.over)return true;
+  return confirm(action+' will end your current game. Your progress in this deal will be lost. Continue?');
+}
+
 function refresh(){
   var free=new Set(),i;
   for(i of G.alive)if(isFree(i,G.alive))free.add(i);
@@ -708,9 +724,9 @@ function act(a){
   if(a==='undo')undo();
   else if(a==='hint')hint();
   else if(a==='shuffle')shuffleBoard();
-  else if(a==='new')newGame(randSeed());
-  else if(a==='replay')newGame(G.seed,G.layout,G.difficulty);
-  else if(a==='layout')newGame(randSeed(),G.layout==='wide'?'tall':'wide');
+  else if(a==='new'){if(confirmAbandon('Starting a new deal'))newGame(randSeed());}
+  else if(a==='replay'){if(confirmAbandon('Replaying this deal'))newGame(G.seed,G.layout,G.difficulty);}
+  else if(a==='layout'){if(confirmAbandon('Switching layouts'))newGame(randSeed(),G.layout==='wide'?'tall':'wide');}
   else if(a==='stats'){resetArm=false;showVeil('stats');}
   else if(a==='closeStats'){
     resetArm=false;
@@ -726,7 +742,7 @@ function act(a){
     }
     showVeil('stats');
   }
-  else if(a==='zoom'){zoomed=!zoomed;fit(true);scroller.scrollLeft=(scroller.scrollWidth-scroller.clientWidth)/2;}
+  else if(a==='zoom'){zoomed=!zoomed;fit(true);scroller.scrollLeft=(scroller.scrollWidth-scroller.clientWidth)/2;scroller.scrollTop=(scroller.scrollHeight-scroller.clientHeight)/2;}
 }
 
 board.addEventListener('animationend',function(e){
@@ -779,7 +795,9 @@ function fit(force){
   var canZoom=tw<40;
   btnZoom.hidden=!canZoom;
   if(!canZoom)zoomed=false;  if(zoomed)tw=Math.min(110,Math.max(36,Math.round(tw*1.55)));
-  btnZoom.textContent=zoomed?'Zoom out':'Zoom in';
+  btnZoom.textContent=zoomed?'Fit board':'Large tiles';
+  btnZoom.setAttribute('aria-pressed',String(zoomed));
+  btnZoom.classList.toggle('zoom-active',zoomed);
   if(tw===lastTw&&!force)return;
   lastTw=tw;
   var ratio=zoomed?1.28:Math.max(1.15,Math.min(1.7,(availH-6)/(LY.rows*tw)));
