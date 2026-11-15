@@ -166,6 +166,7 @@ body{background:radial-gradient(ellipse at 50% 0%,color-mix(in srgb,var(--felt) 
 .options label{font-weight:600;display:flex;align-items:center;gap:8px}
 .options select{font:600 14px var(--sans);padding:8px 12px;border-radius:10px;border:1px solid var(--line);background:var(--panel);color:var(--fg);min-height:40px}
 .options small{font-size:12px;line-height:1.4}
+.mobile-options,.panel-close,.options-backdrop{display:none}
 @media(max-width:520px){.top{padding:2px 0}.bar{padding:6px}.options{gap:4px 10px}}
 
 @media (max-width:520px){
@@ -181,6 +182,29 @@ body{background:radial-gradient(ellipse at 50% 0%,color-mix(in srgb,var(--felt) 
   .actions .primary{grid-column:span 2}
   .options small{flex:1;min-width:170px}
   .meta{font-size:12px}
+}
+/* On phones the board occupies the viewport; the controls open as a sheet. */
+@media (max-width:600px){
+  html,body{height:100%;height:100dvh;overflow:hidden}
+  body{padding:0}
+  .app{height:100%;height:100dvh;max-width:none;grid-template-rows:auto minmax(0,1fr);gap:0}
+  .top{padding:5px max(8px,env(safe-area-inset-right,8px)) 5px max(8px,env(safe-area-inset-left,8px));min-height:52px;gap:6px;align-items:center;flex-wrap:nowrap}
+  .top>div:first-child{display:none}
+  .stats{flex:1;width:auto;gap:3px 7px;grid-template-columns:repeat(4,minmax(0,1fr))}
+  .stat dt{font-size:9px;letter-spacing:.02em}
+  .stat dd{font-size:17px;margin-top:2px}
+  .mobile-options{display:block;flex:none;min-height:42px;padding:0 13px;font-size:13px;white-space:nowrap}
+  .stage{height:100%;padding:3px;border-width:1px;border-radius:0;box-shadow:none}
+  .scroller{max-height:100%;padding:0}
+  .bar{display:none;position:fixed;left:8px;right:8px;bottom:max(8px,env(safe-area-inset-bottom,8px));z-index:8001;max-height:75dvh;overflow:auto;padding:12px;gap:12px;border:1px solid var(--line);border-radius:18px;background:var(--panel);box-shadow:0 12px 48px rgba(0,0,0,.36)}
+  .options-open .bar{display:grid}
+  .panel-close{display:block;justify-self:end;min-height:38px;padding:0 14px}
+  .options-backdrop{display:none;position:fixed;inset:0;z-index:8000;background:rgba(0,0,0,.4)}
+  .options-open .options-backdrop{display:block}
+  .actions{grid-auto-flow:row;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
+  .btn{min-height:46px}
+  .actions .primary{grid-column:span 2}
+  .rules{display:none}
 }
 @media (max-height:800px){.rules{display:none}}
 @media (prefers-reduced-motion:reduce){
@@ -203,6 +227,7 @@ body{background:radial-gradient(ellipse at 50% 0%,color-mix(in srgb,var(--felt) 
       <div class="stat"><dt>Matches</dt><dd id="sMatch">0</dd></div>
       <div class="stat"><dt>Best</dt><dd id="sBest">–</dd></div>
     </dl>
+    <button type="button" class="btn mobile-options" id="btnOptions" aria-expanded="false" aria-controls="bar">☰ Options</button>
   </header>
 
   <main class="stage" id="stage">
@@ -212,7 +237,9 @@ body{background:radial-gradient(ellipse at 50% 0%,color-mix(in srgb,var(--felt) 
     <div class="veil" id="veil" hidden></div>
   </main>
 
+  <div class="options-backdrop" id="optionsBackdrop" aria-hidden="true"></div>
   <div class="bar" id="bar">
+    <button type="button" class="btn panel-close" id="btnCloseOptions">Close ✕</button>
     <div class="options"><label for="difficulty">Difficulty
       <select id="difficulty" aria-label="Choose difficulty">
         <option value="easy">🌱 Easy</option><option value="normal">🍃 Normal</option><option value="hard">🔥 Hard</option>
@@ -379,6 +406,15 @@ function faceSVG(f){
 
 var $=function(s){return document.querySelector(s);};
 var board=$('#board'),scroller=$('#scroller'),btnZoom=$('#btnZoom'),zoomed=false,stage=$('#stage'),veil=$('#veil'),bar=$('#bar');
+var btnOptions=$('#btnOptions'),btnCloseOptions=$('#btnCloseOptions'),optionsBackdrop=$('#optionsBackdrop');
+function setOptionsOpen(open){
+  document.body.classList.toggle('options-open',open);
+  btnOptions.setAttribute('aria-expanded',String(open));
+  if(open)btnCloseOptions.focus();else btnOptions.focus();
+}
+btnOptions.addEventListener('click',function(){setOptionsOpen(!document.body.classList.contains('options-open'));});
+btnCloseOptions.addEventListener('click',function(){setOptionsOpen(false);});
+optionsBackdrop.addEventListener('click',function(){setOptionsOpen(false);});
 var elTime=$('#sTime'),elTiles=$('#sTiles'),elMatch=$('#sMatch'),elBest=$('#sBest'),elDeal=$('#dealNo');
 var btnUndo=$('#btnUndo'),btnHint=$('#btnHint'),btnShuffle=$('#btnShuffle');
 var difficultyControl=$('#difficulty'),difficultyDesc=$('#difficultyDesc');
@@ -755,7 +791,7 @@ board.addEventListener('click',function(e){
 });
 document.addEventListener('click',function(e){
   var b=e.target.closest('[data-act]');
-  if(b&&!b.disabled)act(b.dataset.act);
+  if(b&&!b.disabled){act(b.dataset.act);if(document.body.classList.contains('options-open'))setOptionsOpen(false);}
 });
 difficultyControl.addEventListener('change',function(){
   var next=validDifficulty(difficultyControl.value);
@@ -764,8 +800,10 @@ difficultyControl.addEventListener('change',function(){
     difficultyControl.value=G.difficulty;return;
   }
   clearHint();newGame(randSeed(),G.layout,next);
+  if(document.body.classList.contains('options-open'))setOptionsOpen(false);
 });
 document.addEventListener('keydown',function(e){
+  if(e.key==='Escape'&&document.body.classList.contains('options-open')){setOptionsOpen(false);return;}
   if(e.metaKey||e.ctrlKey||e.altKey)return;
   if(e.target&&/^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName))return;
   var k=e.key.toLowerCase();
