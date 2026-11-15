@@ -249,7 +249,7 @@ body{background:radial-gradient(ellipse at 50% 0%,color-mix(in srgb,var(--felt) 
       </select></label><label for="difficulty">Difficulty
       <select id="difficulty" aria-label="Choose difficulty">
         <option value="easy">🌱 Easy</option><option value="normal">🍃 Normal</option><option value="hard">🔥 Hard</option>
-      </select></label><label for="soundToggle"><input type="checkbox" id="soundToggle"> Sounds</label><small id="difficultyDesc" aria-live="polite"></small></div>
+      </select></label><label for="soundToggle"><input type="checkbox" id="soundToggle"> Sounds</label><label for="fitBoardToggle"><input type="checkbox" id="fitBoardToggle"> Fit whole board (no swiping)</label><small id="difficultyDesc" aria-live="polite"></small></div>
     <div class="actions">
       <button type="button" class="btn" id="btnUndo" data-act="undo" title="Undo (U)">Undo</button>
       <button type="button" class="btn" id="btnHint" data-act="hint" title="Hint (H)">Hint</button>
@@ -441,6 +441,15 @@ optionsBackdrop.addEventListener('click',function(){setOptionsOpen(false);});
 var elTime=$('#sTime'),elTiles=$('#sTiles'),elMatch=$('#sMatch'),elBest=$('#sBest'),elDeal=$('#dealNo');
 var btnUndo=$('#btnUndo'),btnHint=$('#btnHint'),btnShuffle=$('#btnShuffle');
 var difficultyControl=$('#difficulty'),difficultyDesc=$('#difficultyDesc'),layoutControl=$('#layoutSelect'),soundToggle=$('#soundToggle');
+var fitBoardToggle=$('#fitBoardToggle'),fitBoardEnabled=false;
+try{fitBoardEnabled=localStorage.getItem('mahjong-fit-board-v1')==='on';}catch(e){}
+fitBoardToggle.checked=fitBoardEnabled;
+fitBoardToggle.addEventListener('change',function(){
+  fitBoardEnabled=fitBoardToggle.checked;
+  try{localStorage.setItem('mahjong-fit-board-v1',fitBoardEnabled?'on':'off');}catch(e){}
+  fit(true);
+  if(fitBoardEnabled)scroller.scrollLeft=0;
+});
 var SOUND_KEY='mahjong-sounds-v1',soundEnabled=false,audioContext=null;
 try{soundEnabled=localStorage.getItem(SOUND_KEY)==='on';}catch(e){}
 soundToggle.checked=soundEnabled;
@@ -898,6 +907,10 @@ function fit(force){
   var availH=stage.clientHeight-parseFloat(cs.paddingTop)-parseFloat(cs.paddingBottom)-8;
   availH=Math.max(availH,200);
   var tw=Math.floor(Math.min(availW/(LY.cols+.1),availH/(LY.rows*1.15+.06)));
+  // Gentle phone-only enlargement for wide boards: about 20% of the
+  // board can scroll sideways. Tower keeps its approved full-width fit.
+  var phoneWide=window.matchMedia&&window.matchMedia('(max-width:600px) and (orientation:portrait)').matches&&G.layout!=='tall';
+  if(phoneWide&&!fitBoardEnabled)tw=Math.round(tw*1.22);
   tw=Math.max(16,Math.min(110,tw));
   var canZoom=tw<40;
   btnZoom.hidden=!canZoom;
@@ -919,6 +932,11 @@ function fit(force){
     q.el.style.top=(q.y*th/2-q.l*t)+'px';
     q.el.style.zIndex=q.l*1000+q.y*20+q.x;
   });
+  if(force&&phoneWide&&!zoomed){
+    requestAnimationFrame(function(){
+      scroller.scrollLeft=Math.max(0,(scroller.scrollWidth-scroller.clientWidth)/2);
+    });
+  }
 }
 window.addEventListener('resize',function(){fit(false);});
 if(window.ResizeObserver)new ResizeObserver(function(){fit(false);}).observe(stage);
