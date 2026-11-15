@@ -121,6 +121,7 @@ h1{margin:0;font:900 clamp(22px,4vw,30px)/1.1 var(--cjk);letter-spacing:-.01em;t
 }
 .veil-card{
   display:grid;gap:10px;max-width:340px;padding:20px 22px;text-align:center;
+  max-height:85dvh;overflow:auto;
   background:var(--panel);border:1px solid var(--line);border-radius:14px;
   box-shadow:0 14px 40px rgba(0,0,0,.25);
 }
@@ -138,6 +139,8 @@ h1{margin:0;font:900 clamp(22px,4vw,30px)/1.1 var(--cjk);letter-spacing:-.01em;t
 .stat-grid div{min-width:0}
 .stat-grid dt{font:500 11px/1.2 var(--sans);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
 .stat-grid dd{margin:3px 0 0;font:900 20px/1.15 var(--cjk);font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.records{max-height:155px;overflow:auto;text-align:left;font-size:12px;line-height:1.7;border-top:1px solid var(--line);padding-top:8px}
+.records p{margin:0;color:var(--fg)}
 @keyframes fade{from{opacity:0}to{opacity:1}}
 @keyframes rise{from{opacity:0;transform:translateY(18px) scale(.94)}to{opacity:1;transform:none}}
 @keyframes stamp{0%{opacity:0;transform:scale(2.6) rotate(-16deg)}100%{opacity:1;transform:scale(1) rotate(-6deg)}}
@@ -240,10 +243,13 @@ body{background:radial-gradient(ellipse at 50% 0%,color-mix(in srgb,var(--felt) 
   <div class="options-backdrop" id="optionsBackdrop" aria-hidden="true"></div>
   <div class="bar" id="bar">
     <button type="button" class="btn panel-close" id="btnCloseOptions">Close ✕</button>
-    <div class="options"><label for="difficulty">Difficulty
+    <div class="options"><label for="layoutSelect">Board
+      <select id="layoutSelect" aria-label="Choose board layout">
+        <option value="wide">Turtle</option><option value="tall">Tower</option><option value="pyramid">Pyramid</option><option value="fortress">Fortress</option><option value="bridge">Bridge</option>
+      </select></label><label for="difficulty">Difficulty
       <select id="difficulty" aria-label="Choose difficulty">
         <option value="easy">🌱 Easy</option><option value="normal">🍃 Normal</option><option value="hard">🔥 Hard</option>
-      </select></label><small id="difficultyDesc" aria-live="polite"></small></div>
+      </select></label><label for="soundToggle"><input type="checkbox" id="soundToggle"> Sounds</label><small id="difficultyDesc" aria-live="polite"></small></div>
     <div class="actions">
       <button type="button" class="btn" id="btnUndo" data-act="undo" title="Undo (U)">Undo</button>
       <button type="button" class="btn" id="btnHint" data-act="hint" title="Hint (H)">Hint</button>
@@ -251,7 +257,7 @@ body{background:radial-gradient(ellipse at 50% 0%,color-mix(in srgb,var(--felt) 
       <button type="button" class="btn" id="btnZoom" data-act="zoom" title="Enlarge the tiles" aria-pressed="false" hidden>Large tiles</button>
       <button type="button" class="btn primary" id="btnNew" data-act="new" title="New deal (N)">New deal</button>
     </div>
-    <p class="meta">Deal <b id="dealNo">0000</b> · <button type="button" class="link" id="btnReplay" data-act="replay">Replay this deal</button> · <button type="button" class="link" id="btnStats" data-act="stats">Statistics</button> · <button type="button" class="link" id="btnLayout" data-act="layout">Switch layout</button></p>
+    <p class="meta">Deal <b id="dealNo">0000</b> · <button type="button" class="link" id="btnReplay" data-act="replay">Replay this deal</button> · <button type="button" class="link" id="btnStats" data-act="stats">Statistics</button></p>
     <p class="rules">Match two identical tiles that are free. A tile is free when nothing lies on top of it and its left or right side is open. Any flower pairs with any flower, and any season with any season. Every deal can be cleared, and Shuffle keeps it that way.</p>
   </div>
 </div>
@@ -306,9 +312,26 @@ function buildTall(){
   for(y=6;y<=12;y+=2)for(x=4;x<=10;x+=2)P.push({x:x,y:y,l:2});
   return P;
 }
+function rectLayer(P,cols,rows,x0,y0,level){
+  for(var y=0;y<rows;y++)for(var x=0;x<cols;x++)P.push({x:x0+2*x,y:y0+2*y,l:level});
+}
+function buildPyramid(){
+  var P=[];rectLayer(P,10,8,0,0,0);rectLayer(P,8,6,2,2,1);rectLayer(P,4,4,6,4,2);return P;
+}
+function buildFortress(){
+  var P=[];rectLayer(P,12,8,0,0,0);rectLayer(P,8,4,4,4,1);rectLayer(P,4,4,8,4,2);return P;
+}
+function buildBridge(){
+  var P=[];rectLayer(P,12,8,0,0,0);
+  rectLayer(P,4,4,0,4,1);rectLayer(P,4,4,16,4,1);
+  rectLayer(P,2,4,2,4,2);rectLayer(P,2,4,18,4,2);return P;
+}
 var LAYOUTS={
   wide:{data:buildWide(),cols:15,rows:8,name:'Turtle'},
-  tall:{data:buildTall(),cols:8,rows:10,name:'Tower'}
+  tall:{data:buildTall(),cols:8,rows:10,name:'Tower'},
+  pyramid:{data:buildPyramid(),cols:10,rows:8,name:'Pyramid'},
+  fortress:{data:buildFortress(),cols:12,rows:8,name:'Fortress'},
+  bridge:{data:buildBridge(),cols:12,rows:8,name:'Bridge'}
 };
 var POS=LAYOUTS.wide.data.map(function(p){return {x:p.x,y:p.y,l:p.l};});
 function applyLayout(name){
@@ -417,7 +440,34 @@ btnCloseOptions.addEventListener('click',function(){setOptionsOpen(false);});
 optionsBackdrop.addEventListener('click',function(){setOptionsOpen(false);});
 var elTime=$('#sTime'),elTiles=$('#sTiles'),elMatch=$('#sMatch'),elBest=$('#sBest'),elDeal=$('#dealNo');
 var btnUndo=$('#btnUndo'),btnHint=$('#btnHint'),btnShuffle=$('#btnShuffle');
-var difficultyControl=$('#difficulty'),difficultyDesc=$('#difficultyDesc');
+var difficultyControl=$('#difficulty'),difficultyDesc=$('#difficultyDesc'),layoutControl=$('#layoutSelect'),soundToggle=$('#soundToggle');
+var SOUND_KEY='mahjong-sounds-v1',soundEnabled=false,audioContext=null;
+try{soundEnabled=localStorage.getItem(SOUND_KEY)==='on';}catch(e){}
+soundToggle.checked=soundEnabled;
+soundToggle.addEventListener('change',function(){
+  soundEnabled=soundToggle.checked;
+  try{localStorage.setItem(SOUND_KEY,soundEnabled?'on':'off');}catch(e){}
+  if(soundEnabled)playSound('select');
+});
+function playSound(kind){
+  if(!soundEnabled)return;
+  try{
+    var Audio=window.AudioContext||window.webkitAudioContext;
+    if(!Audio)return;
+    if(!audioContext)audioContext=new Audio();
+    if(audioContext.state==='suspended')audioContext.resume();
+    var now=audioContext.currentTime;
+    var notes=kind==='win'?[523,659,784,1046]:kind==='match'?[440,660]:kind==='shuffle'?[350,460]:[460];
+    notes.forEach(function(hz,i){
+      var start=now+i*(kind==='win'?.13:.065),duration=kind==='win'?.23:.11;
+      var osc=audioContext.createOscillator(),gain=audioContext.createGain();
+      osc.type='sine';osc.frequency.value=hz;
+      gain.gain.setValueAtTime(.0001,start);gain.gain.exponentialRampToValueAtTime(.07,start+.012);
+      gain.gain.exponentialRampToValueAtTime(.0001,start+duration);
+      osc.connect(gain);gain.connect(audioContext.destination);osc.start(start);osc.stop(start+duration+.01);
+    });
+  }catch(e){}
+}
 var DIFFICULTY_KEY='mahjong-turtle-difficulty-v1';
 var DIFFICULTIES={
   easy:{description:'Matching free tiles glow gently · Unlimited hints and reshuffles.',hints:Infinity,shuffles:Infinity},
@@ -443,6 +493,10 @@ var T=POS.map(function(p,i){
 });
 var G={layout:'wide',difficulty:chosenDifficulty,shufflesUsed:0,seed:0,alive:new Set(ALL),sel:-1,hist:[],elapsed:0,running:false,over:false,hintN:0,free:new Set(),byG:{},matches:0};
 var STATS_KEY='mahjong-turtle-stats-v1',SAVE_KEY='mahjong-turtle-save-v1';
+var RECORDS_KEY='mahjong-layout-records-v1',records={};
+try{var savedRecords=JSON.parse(localStorage.getItem(RECORDS_KEY)||'{}');if(savedRecords&&typeof savedRecords==='object'&&!Array.isArray(savedRecords))records=savedRecords;}catch(e){}
+function recordKey(){return G.layout+':'+G.difficulty;}
+function saveRecords(){try{localStorage.setItem(RECORDS_KEY,JSON.stringify(records));}catch(e){}}
 var stats={played:0,won:0,streak:0,bestStreak:0,bestTime:0,totalTime:0};
 try{
   var rawS=localStorage.getItem(STATS_KEY);
@@ -554,6 +608,7 @@ function chooseLayout(){
 function setLayoutNow(name){
   applyLayout(name);
   G.layout=name;
+  layoutControl.value=name;
   T.forEach(function(t,i){t.x=POS[i].x;t.y=POS[i].y;t.l=POS[i].l;});
   var eb=document.getElementById('eyebrow');
   if(eb)eb.textContent=LAYOUTS[name].name+' layout · 144 tiles';
@@ -581,13 +636,15 @@ function loadSave(){
 function statsHTML(){
   var p=stats.played,w=stats.won;
   var cell=function(k,v){return '<div><dt>'+k+'</dt><dd>'+v+'</dd></div>';};
+  var rows=Object.keys(records).filter(function(k){return LAYOUTS[k.split(':')[0]]&&DIFFICULTIES[k.split(':')[1]]&&Number.isFinite(records[k])&&records[k]>0;}).sort();
+  var recordHTML=rows.length?rows.map(function(k){var parts=k.split(':');return '<p>'+LAYOUTS[parts[0]].name+' · '+parts[1].charAt(0).toUpperCase()+parts[1].slice(1)+': <b>'+fmt(records[k])+'</b></p>';}).join(''):'<p>Clear a board to start recording personal bests for each layout and difficulty.</p>';
   return '<div class="veil-card"><h2>Your statistics</h2><dl class="stat-grid">'
     +cell('Games played',p)+cell('Games won',w)
     +cell('Win rate',p?Math.round(w/p*100)+'%':'–')
     +cell('Best time',stats.bestTime?fmt(stats.bestTime):'–')
     +cell('Average win',w?fmt(Math.round(stats.totalTime/w)):'–')
     +cell('Win streak',stats.streak+' · best '+stats.bestStreak)
-    +'</dl><p>A game counts once you clear your first pair. Starting a new deal in the middle of a game ends your streak.</p>'
+    +'</dl><div class="records"><b>Best times by board and difficulty</b>'+recordHTML+'</div><p>A game counts once you clear your first pair. Starting a new deal in the middle of a game ends your streak.</p>'
     +'<div class="veil-actions"><button type="button" class="btn primary" data-act="closeStats">Close</button>'
     +'<button type="button" class="btn" data-act="resetStats">'+(resetArm?'Tap again to erase':'Reset statistics')+'</button></div></div>';
 }
@@ -659,8 +716,11 @@ function win(){
   var isBest=false;
   stats.won++;stats.streak++;stats.bestStreak=Math.max(stats.bestStreak,stats.streak);stats.totalTime+=G.elapsed;
   if(!stats.bestTime||G.elapsed<stats.bestTime){stats.bestTime=G.elapsed;isBest=true;}
+  var key=recordKey();
+  if(!records[key]||G.elapsed<records[key]){records[key]=G.elapsed;saveRecords();}
   best=stats.bestTime;G.wonBest=isBest;saveStats();btnUndo.disabled=true;
   elBest.textContent=fmt(best);
+  playSound('win');
   fx.win();
   fx.later(reduceMotion?0:900,function(){if(G.over&&G.alive.size===0)showVeil('win',isBest);});
 }
@@ -691,7 +751,7 @@ function pick(i){
   }
   G.running=true;
   clearHint();
-  if(G.sel===-1){G.sel=i;t.el.classList.add('sel');return;}
+  if(G.sel===-1){G.sel=i;t.el.classList.add('sel');playSound('select');return;}
   if(G.sel===i){G.sel=-1;t.el.classList.remove('sel');return;}
   var s=G.sel;
   if(T[s].face.group===t.face.group){
@@ -699,12 +759,13 @@ function pick(i){
     G.alive.delete(s);G.alive.delete(i);
     T[s].el.classList.add('gone');t.el.classList.add('gone');
     G.hist.push([s,i]);G.sel=-1;
+    playSound('match');
     fx.pop([s,i]);
     if(!G.counted){G.counted=true;stats.played++;saveStats();}
     refresh();
   }else{
     T[s].el.classList.remove('sel');
-    G.sel=i;t.el.classList.add('sel');
+    G.sel=i;t.el.classList.add('sel');playSound('select');
   }
 }
 
@@ -753,6 +814,7 @@ function shuffleBoard(){
   });
   G.hist=[];
   G.shufflesUsed++;
+  playSound('shuffle');
   refresh();
 }
 
@@ -762,7 +824,6 @@ function act(a){
   else if(a==='shuffle')shuffleBoard();
   else if(a==='new'){if(confirmAbandon('Starting a new deal'))newGame(randSeed());}
   else if(a==='replay'){if(confirmAbandon('Replaying this deal'))newGame(G.seed,G.layout,G.difficulty);}
-  else if(a==='layout'){if(confirmAbandon('Switching layouts'))newGame(randSeed(),G.layout==='wide'?'tall':'wide');}
   else if(a==='stats'){resetArm=false;showVeil('stats');}
   else if(a==='closeStats'){
     resetArm=false;
@@ -774,6 +835,7 @@ function act(a){
     if(!resetArm){resetArm=true;}
     else{
       stats={played:0,won:0,streak:0,bestStreak:0,bestTime:0,totalTime:0};
+      records={};saveRecords();
       best=null;saveStats();elBest.textContent='–';resetArm=false;
     }
     showVeil('stats');
@@ -800,6 +862,13 @@ difficultyControl.addEventListener('change',function(){
     difficultyControl.value=G.difficulty;return;
   }
   clearHint();newGame(randSeed(),G.layout,next);
+  if(document.body.classList.contains('options-open'))setOptionsOpen(false);
+});
+layoutControl.addEventListener('change',function(){
+  var next=layoutControl.value;
+  if(!LAYOUTS[next]||next===G.layout)return;
+  if(!confirmAbandon('Changing the board layout')){layoutControl.value=G.layout;return;}
+  clearHint();newGame(randSeed(),next,G.difficulty);
   if(document.body.classList.contains('options-open'))setOptionsOpen(false);
 });
 document.addEventListener('keydown',function(e){
